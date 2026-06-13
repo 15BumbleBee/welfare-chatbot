@@ -1,0 +1,437 @@
+
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--green:#1D9E75;--green-light:#E1F5EE;--green-dark:#085041;--chat-bg:var(--color-background-secondary);--bubble-user:#1D9E75;--bubble-bot:var(--color-background-primary)}
+  body{font-family:var(--font-sans)}
+
+  .phone-wrap{display:flex;flex-direction:column;align-items:center;padding:1.5rem 0 1rem}
+  .phone{width:360px;border-radius:32px;border:2px solid var(--color-border-secondary);overflow:hidden;background:var(--color-background-secondary);box-shadow:none}
+
+  .phone-header{background:#1D9E75;padding:14px 16px 10px;display:flex;align-items:center;gap:10px}
+  .phone-avatar{width:36px;height:36px;border-radius:50%;background:#0F6E56;display:flex;align-items:center;justify-content:center;font-size:17px;color:#E1F5EE;font-weight:500;flex-shrink:0}
+  .phone-title{color:#fff;font-size:14px;font-weight:500;line-height:1.2}
+  .phone-sub{color:rgba(255,255,255,0.75);font-size:11px}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:#9FE1CB;margin-left:auto}
+
+  .chat-area{height:340px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:#ECE5DD}
+  .msg{max-width:80%;padding:8px 12px;border-radius:10px;font-size:13px;line-height:1.5;word-break:break-word;white-space:pre-wrap}
+  .msg.bot{background:#fff;color:#1a1a1a;border-radius:3px 10px 10px 10px;align-self:flex-start;box-shadow:0 1px 1px rgba(0,0,0,0.08)}
+  .msg.user{background:#DCF8C6;color:#1a1a1a;border-radius:10px 3px 10px 10px;align-self:flex-end;box-shadow:0 1px 1px rgba(0,0,0,0.08)}
+  .msg.typing{background:#fff;color:#888;font-style:italic;align-self:flex-start;border-radius:3px 10px 10px 10px;box-shadow:0 1px 1px rgba(0,0,0,0.08)}
+
+  .phone-input{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#F0F0F0;border-top:0.5px solid #ccc}
+  .phone-input input{flex:1;border:none;background:#fff;border-radius:20px;padding:8px 12px;font-size:13px;outline:none;font-family:var(--font-sans)}
+  .phone-input button{width:34px;height:34px;border-radius:50%;background:#1D9E75;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+  .phone-input button:active{transform:scale(0.94)}
+
+  .quick-btns{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;background:#F0F0F0}
+  .qbtn{font-size:11px;padding:5px 10px;border-radius:14px;border:1px solid #1D9E75;background:#fff;color:#1D9E75;cursor:pointer;font-family:var(--font-sans)}
+  .qbtn:active{background:#E1F5EE}
+
+  .lang-bar{display:flex;gap:8px;padding:0.75rem 0 0.5rem;justify-content:center}
+  .lang-btn{font-size:12px;padding:5px 14px;border-radius:14px;border:1px solid var(--color-border-secondary);background:var(--color-background-primary);color:var(--color-text-secondary);cursor:pointer;font-family:var(--font-sans)}
+  .lang-btn.active{background:#1D9E75;color:#fff;border-color:#1D9E75}
+  .lang-btn:active{opacity:0.8}
+
+  .info-strip{font-size:11px;color:var(--color-text-secondary);text-align:center;margin-top:0.5rem;padding:0 1rem}
+</style>
+
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Welfare scheme chatbot demo — find Indian government schemes by answering eligibility questions</h2>
+
+<div class="phone-wrap">
+
+<div class="lang-bar">
+  <button class="lang-btn active" onclick="setLang('en')">English</button>
+  <button class="lang-btn" onclick="setLang('hi')">हिंदी</button>
+  <button class="lang-btn" onclick="setLang('ta')">தமிழ்</button>
+</div>
+
+<div class="phone">
+  <div class="phone-header">
+    <div class="phone-avatar">🏛</div>
+    <div>
+      <div class="phone-title">Welfare Schemes Bot</div>
+      <div class="phone-sub">Government of India</div>
+    </div>
+    <div class="status-dot"></div>
+  </div>
+
+  <div class="chat-area" id="chatArea"></div>
+
+  <div class="quick-btns" id="quickBtns"></div>
+
+  <div class="phone-input">
+    <input type="text" id="userInput" placeholder="Type a message…" onkeydown="if(event.key==='Enter')send()" />
+    <button onclick="send()" aria-label="Send">&#9658;</button>
+  </div>
+</div>
+
+<p class="info-strip">Simulates the real conversation flow from your backend. Try: farmer / village / female / 60000 / 1.5 / yes</p>
+</div>
+
+<script>
+const SCHEMES = [
+  {id:"pm_kisan",name:"PM-KISAN",name_hi:"पीएम किसान",name_ta:"பிஎம் கிசான்",
+   description:"Direct income support of ₹6,000/year to small and marginal farmers in 3 installments.",
+   eligibility:{occupation:["farmer"],land_max:2.0,residence:"rural"},
+   documents:["Aadhaar card","Land ownership records (Khatoni)","Bank account passbook","Mobile number linked to Aadhaar"],
+   documents_hi:["आधार कार्ड","भूमि स्वामित्व रिकॉर्ड (खतौनी)","बैंक पासबुक","आधार से जुड़ा मोबाइल नंबर"],
+   documents_ta:["ஆதார் அட்டை","நில உரிமை ஆவணங்கள்","வங்கி பாஸ்புக்","ஆதாருடன் இணைக்கப்பட்ட மொபைல் எண்"],
+   apply_url:"https://pmkisan.gov.in",
+   apply_steps:"1. Visit pmkisan.gov.in\n2. Click 'Farmer Corner' → 'New Farmer Registration'\n3. Enter Aadhaar number\n4. Fill land and bank details\n5. Submit and note registration number"},
+
+  {id:"ayushman_bharat",name:"Ayushman Bharat PM-JAY",name_hi:"आयुष्मान भारत",name_ta:"ஆயுஷ்மான் பாரத்",
+   description:"Health insurance of ₹5 lakh/year per family for hospitalization.",
+   eligibility:{income_max:300000},
+   documents:["Aadhaar card","Ration card","SECC family ID","Income certificate"],
+   documents_hi:["आधार कार्ड","राशन कार्ड","SECC पारिवारिक आईडी","आय प्रमाण पत्र"],
+   documents_ta:["ஆதார் அட்டை","ரேஷன் கார்டு","SECC குடும்ப அடையாளம்","வருமான சான்றிதழ்"],
+   apply_url:"https://pmjay.gov.in",
+   apply_steps:"1. Call 14555 or visit nearest empanelled hospital\n2. Show Aadhaar + ration card\n3. Hospital verifies eligibility\n4. Get Ayushman card issued"},
+
+  {id:"pmay_gramin",name:"PMAY-Gramin",name_hi:"प्रधानमंत्री आवास योजना ग्रामीण",name_ta:"பிரதம மந்திரி ஆவாஸ் யோஜனா",
+   description:"Financial assistance of ₹1.2–1.4 lakh to rural households in kutcha houses.",
+   eligibility:{residence:"rural"},
+   documents:["Aadhaar card","BPL/SECC certificate","Bank account details","Photo of current house"],
+   documents_hi:["आधार कार्ड","बीपीएल/SECC प्रमाण पत्र","बैंक खाता विवरण","वर्तमान घर की फोटो"],
+   documents_ta:["ஆதார் அட்டை","BPL/SECC சான்றிதழ்","வங்கி கணக்கு விவரங்கள்","தற்போதைய வீட்டின் புகைப்படம்"],
+   apply_url:"https://pmayg.nic.in",
+   apply_steps:"1. Contact Gram Panchayat office\n2. Verify name in SECC/Awaas+ list\n3. Gram Sabha approval\n4. Online registration by Panchayat\n5. Construction in 3 installments via DBT"},
+
+  {id:"ujjwala",name:"PM Ujjwala Yojana",name_hi:"प्रधानमंत्री उज्ज्वला योजना",name_ta:"பிரதம மந்திரி உஜ்வலா யோஜனா",
+   description:"Free LPG connection to women from BPL households.",
+   eligibility:{gender:"female",bpl:true},
+   documents:["Aadhaar card","BPL ration card","Bank account passbook","Passport-size photo"],
+   documents_hi:["आधार कार्ड","बीपीएल राशन कार्ड","बैंक पासबुक","पासपोर्ट साइज फोटो"],
+   documents_ta:["ஆதார் அட்டை","BPL ரேஷன் கார்டு","வங்கி பாஸ்புக்","கடவுச்சீட்டு அளவு புகைப்படம்"],
+   apply_url:"https://pmuy.gov.in",
+   apply_steps:"1. Visit nearest LPG distributor\n2. Submit KYC form (Form 1 and 2)\n3. Attach Aadhaar + BPL card\n4. Connection issued within 7-10 days"},
+
+  {id:"nrega",name:"MGNREGA",name_hi:"मनरेगा",name_ta:"மகாத்மா காந்தி தேசிய ஊரக வேலை திட்டம்",
+   description:"Guarantees 100 days of wage employment per year to rural households. Wage: ₹200–350/day.",
+   eligibility:{residence:"rural"},
+   documents:["Aadhaar card","Bank/Post Office account","Ration card or proof of residence"],
+   documents_hi:["आधार कार्ड","बैंक/डाकघर खाता","राशन कार्ड या निवास प्रमाण"],
+   documents_ta:["ஆதார் அட்டை","வங்கி/தபால் நிலைய கணக்கு","ரேஷன் கார்டு"],
+   apply_url:"https://nrega.nic.in",
+   apply_steps:"1. Visit Gram Panchayat and fill registration form\n2. Get Job Card issued (free, within 15 days)\n3. Request work at Panchayat\n4. Work allocated within 15 days"},
+
+  {id:"pm_vishwakarma",name:"PM Vishwakarma",name_hi:"पीएम विश्वकर्मा योजना",name_ta:"பிரதம மந்திரி விஸ்வகர்மா யோஜனா",
+   description:"₹15,000 toolkit grant, skill training, and collateral-free loans up to ₹3 lakh at 5% for artisans.",
+   eligibility:{occupation:["artisan","carpenter","weaver","tailor","potter","blacksmith","cobbler","mason","barber"]},
+   documents:["Aadhaar card","Bank account","Mobile number","Proof of traditional occupation"],
+   documents_hi:["आधार कार्ड","बैंक खाता","मोबाइल नंबर","पारंपरिक व्यवसाय का प्रमाण"],
+   documents_ta:["ஆதார் அட்டை","வங்கி கணக்கு","மொபைல் எண்","பாரம்பரிய தொழில் சான்று"],
+   apply_url:"https://pmvishwakarma.gov.in",
+   apply_steps:"1. Visit CSC (Common Service Center) near you\n2. Register with Aadhaar\n3. Gram Panchayat verification\n4. Complete skill training\n5. Apply for toolkit grant and loan"},
+
+  {id:"e_shram",name:"e-Shram Card",name_hi:"ई-श्रम कार्ड",name_ta:"இ-ஷ்ரம் அட்டை",
+   description:"National registration for unorganized workers — ₹2 lakh accident insurance and welfare scheme access.",
+   eligibility:{occupation:["gig worker","daily wage","construction","domestic","street vendor"]},
+   documents:["Aadhaar card","Mobile number linked to Aadhaar","Bank account"],
+   documents_hi:["आधार कार्ड","आधार से जुड़ा मोबाइल नंबर","बैंक खाता"],
+   documents_ta:["ஆதார் அட்டை","ஆதாருடன் இணைக்கப்பட்ட மொபைல் எண்","வங்கி கணக்கு"],
+   apply_url:"https://eshram.gov.in",
+   apply_steps:"1. Visit eshram.gov.in or nearest CSC\n2. Enter Aadhaar and OTP\n3. Fill occupation and bank details\n4. Download e-Shram card"}
+];
+
+const QUESTIONS = {
+  en:[
+    ["occupation","What is your main work?\n(farmer / daily wage / artisan / gig worker / other)"],
+    ["residence","Do you live in a village (rural) or town/city (urban)?"],
+    ["gender","Are you male or female?"],
+    ["income","What is your yearly family income in rupees? (rough estimate)"],
+    ["land_hectares","If farmer: how many hectares of land do you own? (enter 0 if not a farmer)"],
+    ["is_bpl","Do you have a BPL (Below Poverty Line) ration card? (yes / no)"]
+  ],
+  hi:[
+    ["occupation","आपका मुख्य काम क्या है?\n(किसान / दिहाड़ी मजदूर / कारीगर / गिग वर्कर / अन्य)"],
+    ["residence","आप गांव में रहते हैं या शहर में? (गांव / शहर)"],
+    ["gender","आप पुरुष हैं या महिला? (पुरुष / महिला)"],
+    ["income","आपकी वार्षिक पारिवारिक आय कितनी है? (अनुमानित रुपयों में)"],
+    ["land_hectares","अगर किसान हैं: आपके पास कितनी हेक्टेयर जमीन है? (0 अगर किसान नहीं)"],
+    ["is_bpl","क्या आपके पास बीपीएल राशन कार्ड है? (हां / नहीं)"]
+  ],
+  ta:[
+    ["occupation","உங்கள் தொழில் என்ன?\n(விவசாயி / கூலி தொழிலாளி / கைவினைஞர் / கிக் ஒர்க்கர் / மற்றவை)"],
+    ["residence","நீங்கள் கிராமத்தில் வசிக்கிறீர்களா நகரத்திலா? (கிராமம் / நகரம்)"],
+    ["gender","நீங்கள் ஆண் அல்லது பெண்? (ஆண் / பெண்)"],
+    ["income","உங்கள் குடும்பத்தின் ஆண்டு வருமானம் எவ்வளவு? (தோராயமாக ரூபாயில்)"],
+    ["land_hectares","விவசாயி எனில்: நீங்கள் எத்தனை ஹெக்டேர் நிலம் வைத்திருக்கிறீர்கள்? (விவசாயி இல்லை எனில் 0)"],
+    ["is_bpl","உங்களிடம் BPL ரேஷன் கார்டு இருக்கிறதா? (ஆம் / இல்லை)"]
+  ]
+};
+
+const GREETINGS = {
+  en:"🙏 Hello! I help you find government schemes you qualify for.\n\nReply with your language:\n1. हिंदी (Hindi)\n2. தமிழ் (Tamil)\n3. English",
+  hi:"🙏 नमस्ते! मैं आपकी सरकारी योजनाओं को खोजने में मदद करता हूं।\nआइए शुरू करें।",
+  ta:"🙏 வணக்கம்! அரசு திட்டங்கள் கண்டறிய உதவுகிறேன்.\nசில கேள்விகளுக்கு பதில் கூறுங்கள்."
+};
+
+const QUICK_HINTS = {
+  en:{
+    occupation:["farmer","daily wage","artisan","gig worker"],
+    residence:["village","city"],
+    gender:["male","female"],
+    income:["50000","120000","250000"],
+    land_hectares:["0","0.5","1","2"],
+    is_bpl:["yes","no"],
+    results:["1","2","3"],
+    lang:["1","2","3"]
+  },
+  hi:{
+    occupation:["किसान","दिहाड़ी मजदूर","कारीगर"],
+    residence:["गांव","शहर"],
+    gender:["पुरुष","महिला"],
+    income:["50000","120000"],
+    land_hectares:["0","1","2"],
+    is_bpl:["हां","नहीं"],
+    results:["1","2","3"],
+    lang:["1","2","3"]
+  },
+  ta:{
+    occupation:["விவசாயி","கூலி","கைவினைஞர்"],
+    residence:["கிராமம்","நகரம்"],
+    gender:["ஆண்","பெண்"],
+    income:["50000","120000"],
+    land_hectares:["0","1","2"],
+    is_bpl:["ஆம்","இல்லை"],
+    results:["1","2","3"],
+    lang:["1","2","3"]
+  }
+};
+
+let lang = "en";
+let state = "greeting";
+let step = 0;
+let profile = {};
+let matchedSchemes = [];
+
+function setLang(l){
+  lang=l;
+  document.querySelectorAll('.lang-btn').forEach((b,i)=>{
+    b.classList.toggle('active',['en','hi','ta'][i]===l);
+  });
+  resetChat();
+}
+
+function resetChat(){
+  state="greeting"; step=0; profile={}; matchedSchemes=[];
+  document.getElementById('chatArea').innerHTML='';
+  document.getElementById('userInput').value='';
+  setTimeout(()=>botSay(GREETINGS[lang]),300);
+  setQuickBtns(QUICK_HINTS[lang].lang);
+}
+
+function botSay(text){
+  const area=document.getElementById('chatArea');
+  const d=document.createElement('div');
+  d.className='msg bot'; d.textContent=text;
+  area.appendChild(d);
+  area.scrollTop=area.scrollHeight;
+}
+
+function userSay(text){
+  const area=document.getElementById('chatArea');
+  const d=document.createElement('div');
+  d.className='msg user'; d.textContent=text;
+  area.appendChild(d);
+  area.scrollTop=area.scrollHeight;
+}
+
+function typingIndicator(){
+  const area=document.getElementById('chatArea');
+  const d=document.createElement('div');
+  d.className='msg typing'; d.id='typing-indicator'; d.textContent='typing…';
+  area.appendChild(d);
+  area.scrollTop=area.scrollHeight;
+}
+
+function removeTyping(){
+  const t=document.getElementById('typing-indicator');
+  if(t)t.remove();
+}
+
+function setQuickBtns(hints){
+  const el=document.getElementById('quickBtns');
+  el.innerHTML='';
+  if(!hints||!hints.length)return;
+  hints.forEach(h=>{
+    const b=document.createElement('button');
+    b.className='qbtn'; b.textContent=h;
+    b.onclick=()=>{
+      document.getElementById('userInput').value=h;
+      send();
+    };
+    el.appendChild(b);
+  });
+}
+
+function parseOccupation(t){
+  t=t.toLowerCase();
+  if(/farmer|kisan|किसान|விவசாய/.test(t))return "farmer";
+  if(/artisan|craft|carpenter|potter|weaver|कारीगर|கைவினை|tailor|mason|blacksmith|cobbler|barber/.test(t))return "artisan";
+  if(/gig|delivery|swiggy|uber|ola/.test(t))return "gig worker";
+  if(/daily|labour|mazdoor|मजदूर|கூலி/.test(t))return "daily wage";
+  return "other";
+}
+
+function parseIncome(t){
+  t=t.toLowerCase().replace(/,/g,'');
+  const lakh=t.match(/(\d+\.?\d*)\s*lakh/);
+  if(lakh)return parseFloat(lakh[1])*100000;
+  const k=t.match(/(\d+)\s*k/);
+  if(k)return parseFloat(k[1])*1000;
+  const n=t.match(/\d+/);
+  if(n){let v=parseInt(n[0]);if(v<1000)v*=1000;return v;}
+  return 0;
+}
+
+function parseBool(t){
+  return /yes|haan|ha|हां|ஆம்|^y$|^1$/.test(t.toLowerCase().trim());
+}
+
+function filterEligibility(){
+  const occ=profile.occupation||"";
+  const gender=(profile.gender||"").toLowerCase();
+  const res=(profile.residence||"rural").toLowerCase();
+  const income=profile.income||0;
+  const land=profile.land_hectares||0;
+  const bpl=profile.is_bpl||false;
+  const matched=[];
+
+  SCHEMES.forEach(s=>{
+    let score=0;
+    if(s.id==="pm_kisan"){
+      if(occ==="farmer"&&land>0&&land<=2&&res==="rural")score=3;
+    } else if(s.id==="ayushman_bharat"){
+      if(income<300000||bpl)score=3;
+    } else if(s.id==="pmay_gramin"){
+      if(res==="rural")score=2;
+    } else if(s.id==="ujjwala"){
+      if(gender==="female"&&bpl)score=3;
+    } else if(s.id==="nrega"){
+      if(res==="rural")score=2;
+    } else if(s.id==="pm_vishwakarma"){
+      if(/artisan|carpenter|weaver|tailor|potter|blacksmith|cobbler|mason|barber/.test(occ))score=3;
+    } else if(s.id==="e_shram"){
+      if(/gig|daily|construction|domestic|vendor|labour/.test(occ))score=3;
+    }
+    if(score>0){const r={...s,_score:score};matched.push(r);}
+  });
+  matched.sort((a,b)=>b._score-a._score);
+  return matched;
+}
+
+function getName(s){
+  const k=`name_${lang}`;
+  return s[k]||s.name;
+}
+
+function getDocs(s){
+  const k=`documents_${lang}`;
+  return s[k]||s.documents;
+}
+
+function processMessage(msg){
+  const Q=QUESTIONS[lang];
+  const H=QUICK_HINTS[lang];
+
+  if(state==="greeting"){
+    if(/^1$|hindi|हिंदी/.test(msg.trim())){lang="hi";document.querySelectorAll('.lang-btn').forEach((b,i)=>{b.classList.toggle('active',i===1)});}
+    else if(/^2$|tamil|தமிழ்/.test(msg.trim())){lang="ta";document.querySelectorAll('.lang-btn').forEach((b,i)=>{b.classList.toggle('active',i===2)});}
+    else if(/^3$|english/.test(msg.trim())){lang="en";document.querySelectorAll('.lang-btn').forEach((b,i)=>{b.classList.toggle('active',i===0)});}
+    state="collecting"; step=0; profile={};
+    setQuickBtns(QUICK_HINTS[lang][Q[0][0]]);
+    return QUESTIONS[lang][0][1];
+  }
+
+  if(state==="collecting"){
+    const curQ=QUESTIONS[lang];
+    if(step>0){
+      const [field]=curQ[step-1];
+      if(field==="occupation")profile.occupation=parseOccupation(msg);
+      else if(field==="residence")profile.residence=/rural|village|gram|gaon|गांव|கிராம/.test(msg.toLowerCase())?"rural":"urban";
+      else if(field==="gender")profile.gender=/female|woman|mahila|महिला|பெண்|^f$|^2$/.test(msg.toLowerCase())?"female":"male";
+      else if(field==="income")profile.income=parseIncome(msg);
+      else if(field==="land_hectares"){const m=msg.replace(/,/g,'').match(/\d+\.?\d*/);profile.land_hectares=m?parseFloat(m[0]):0;}
+      else if(field==="is_bpl")profile.is_bpl=parseBool(msg);
+    }
+    if(step<curQ.length){
+      const nextField=curQ[step][0];
+      const hint=QUICK_HINTS[lang][nextField];
+      step++;
+      setQuickBtns(hint||[]);
+      return curQ[step-1][1];
+    } else {
+      state="results";
+      matchedSchemes=filterEligibility();
+      setQuickBtns([]);
+      if(!matchedSchemes.length){
+        return {en:"😔 Based on your answers, no exact matches found. Visit myscheme.gov.in or your nearest CSC center.",
+                hi:"😔 आपके जवाबों के आधार पर कोई योजना नहीं मिली। myscheme.gov.in पर जाएं।",
+                ta:"😔 உங்கள் பதில்களை வைத்து எந்த திட்டமும் கிடைக்கவில்லை. myscheme.gov.in பார்க்கவும்."}[lang];
+      }
+      const hdr={en:"🎯 You may qualify for these schemes:",hi:"🎯 आप इन योजनाओं के लिए पात्र हो सकते हैं:",ta:"🎯 நீங்கள் இந்த திட்டங்களுக்கு தகுதியானவராக இருக்கலாம்:"}[lang];
+      const lines=[hdr];
+      matchedSchemes.slice(0,5).forEach((s,i)=>lines.push(`${i+1}. ${getName(s)}`));
+      const ftr={en:"\nReply with a number (1-5) to get required documents.",hi:"\nदस्तावेज़ जानने के लिए नंबर भेजें (1-5).",ta:"\nஆவணங்கள் தெரிய எண் அனுப்புங்கள் (1-5)."}[lang];
+      lines.push(ftr);
+      setQuickBtns(QUICK_HINTS[lang].results.slice(0,matchedSchemes.length));
+      return lines.join("\n");
+    }
+  }
+
+  if(state==="results"){
+    const num=parseInt(msg.trim())-1;
+    if(!isNaN(num)&&num>=0&&num<matchedSchemes.length){
+      const s=matchedSchemes[num];
+      const docs=getDocs(s).map((d,i)=>`  ${i+1}. ${d}`).join("\n");
+      const nameLabel={en:`📋 Documents for ${getName(s)}:`,hi:`📋 ${getName(s)} के लिए दस्तावेज़:`,ta:`📋 ${getName(s)} ஆவணங்கள்:`}[lang];
+      const stepLabel={en:`\n\n📝 How to apply:\n${s.apply_steps}`,hi:`\n\n📝 आवेदन कैसे करें:\n${s.apply_steps}`,ta:`\n\n📝 விண்ணப்பிப்பது எப்படி:\n${s.apply_steps}`}[lang];
+      const urlLabel={en:`\n\nApply at: ${s.apply_url}`,hi:`\n\nआवेदन: ${s.apply_url}`,ta:`\n\nவிண்ணப்பிக்க: ${s.apply_url}`}[lang];
+      const more={en:"\n\nType 'menu' to see other schemes or 'restart' to start over.",hi:"\n\n'menu' टाइप करें अन्य योजनाओं के लिए, 'restart' से फिर शुरू करें।",ta:"\n\n'menu' என்று தட்டச்சு செய்யுங்கள் மேலும் திட்டங்களுக்கு."}[lang];
+      state="doc_detail";
+      setQuickBtns(["menu","restart"]);
+      return `${nameLabel}\n${docs}${stepLabel}${urlLabel}${more}`;
+    }
+    return {en:"Please send a number from the list above.",hi:"ऊपर दी गई सूची से एक नंबर भेजें।",ta:"மேலே உள்ள பட்டியலிலிருந்து எண் அனுப்புங்கள்."}[lang];
+  }
+
+  if(state==="doc_detail"||msg.toLowerCase()==="menu"){
+    if(msg.toLowerCase()==="menu"&&matchedSchemes.length){
+      state="results";
+      const hdr={en:"🎯 Schemes you may qualify for:",hi:"🎯 आपके लिए योजनाएं:",ta:"🎯 உங்களுக்கான திட்டங்கள்:"}[lang];
+      const lines=[hdr];
+      matchedSchemes.slice(0,5).forEach((s,i)=>lines.push(`${i+1}. ${getName(s)}`));
+      setQuickBtns(QUICK_HINTS[lang].results.slice(0,matchedSchemes.length));
+      return lines.join("\n");
+    }
+  }
+
+  if(/restart|फिर|மறுதொடக்கம்/.test(msg.toLowerCase())){
+    state="greeting"; step=0; profile={}; matchedSchemes=[];
+    setQuickBtns(QUICK_HINTS[lang].lang);
+    return GREETINGS[lang];
+  }
+
+  return {en:"I didn't understand that. Please reply with one of the suggested options.",hi:"मुझे समझ नहीं आया। कृपया दिए गए विकल्पों में से जवाब दें।",ta:"புரியவில்லை. கொடுக்கப்பட்ட விருப்பங்களில் பதிலளிக்கவும்."}[lang];
+}
+
+function send(){
+  const inp=document.getElementById('userInput');
+  const msg=inp.value.trim();
+  if(!msg)return;
+  inp.value='';
+  userSay(msg);
+  setQuickBtns([]);
+  typingIndicator();
+  setTimeout(()=>{
+    removeTyping();
+    const reply=processMessage(msg);
+    botSay(reply);
+  }, 600);
+}
+
+resetChat();
+</script>
